@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contractor Pro - Login</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background: #F1F5F9; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+        .auth-card { background: white; padding: 30px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); width: 90%; max-width: 350px; text-align: center; }
+        h2 { margin-top: 0; color: #0F172A; }
+        input { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #E2E8F0; border-radius: 10px; box-sizing: border-box; }
+        button { width: 100%; padding: 12px; background: #4F46E5; color: white; border: none; border-radius: 10px; font-weight: 600; cursor: pointer; margin-top: 15px; }
+        button:hover { background: #4338ca; }
+        .toggle-text { margin-top: 15px; font-size: 0.9rem; color: #64748B; cursor: pointer; }
+        .toggle-text span { color: #4F46E5; font-weight: 600; }
+    </style>
+</head>
+<body>
+
+    <div class="auth-card" id="loginForm">
+        <h2>Welcome Back</h2>
+        <input type="text" id="lUser" placeholder="Username">
+        <input type="password" id="lPass" placeholder="Password">
+        <button onclick="login()">Sign In</button>
+        <div class="toggle-text" onclick="toggleView()">New here? <span>Create Account</span></div>
+    </div>
+
+    <div class="auth-card" id="regForm" style="display:none">
+        <h2>Create Account</h2>
+        <input type="text" id="rUser" placeholder="Choose Username">
+        <input type="password" id="rPass" placeholder="Choose Password">
+        <button onclick="register()">Sign Up</button>
+        <div class="toggle-text" onclick="toggleView()">Already have account? <span>Sign In</span></div>
+    </div>
+
+    <script>
+        // REPLACE with your Render URL later
+        const API_URL = "http://localhost:3000/api"; 
+
+        let isLogin = true;
+
+        function toggleView() {
+            isLogin = !isLogin;
+            document.getElementById('loginForm').style.display = isLogin ? 'block' : 'none';
+            document.getElementById('regForm').style.display = isLogin ? 'none' : 'block';
+        }
+
+        async function login() {
+            const username = document.getElementById('lUser').value;
+            const password = document.getElementById('lPass').value;
+            
+            try {
+                const res = await fetch(`${API_URL}/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                const data = await res.json();
+                
+                if (data.token) {
+                    localStorage.setItem('token', data.token);
+                    window.location.href = 'index.html';
+                } else {
+                    alert(data.error);
+                }
+            } catch (err) { alert("Server error"); }
+        }
+
+        async function register() {
+            const username = document.getElementById('rUser').value;
+            const password = document.getElementById('rPass').value;
+            
+            try {
+                const res = await fetch(`${API_URL}/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                const data = await res.json();
+                
+                if (data.success) {
+                    alert("Account created! Please log in.");
+                    toggleView();
+                } else {
+                    alert(data.error);
+                }
+            } catch (err) { alert("Server error"); }
+        }
+    </script>
+</body>
+</html>

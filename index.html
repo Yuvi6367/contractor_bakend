@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Contractor Pro</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        :root {
+            --primary: #4F46E5;
+            --bg: #F1F5F9;
+            --surface: #FFFFFF;
+            --text-main: #0F172A;
+            --text-sub: #64748B;
+            --green: #10B981;
+            --red: #EF4444;
+            --orange: #F59E0B;
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text-main); margin: 0; padding-bottom: 90px; }
+
+        /* HEADER */
+        .app-header {
+            background: rgba(255,255,255,0.95); backdrop-filter: blur(10px);
+            padding: 15px 20px; position: sticky; top: 0; z-index: 50;
+            border-bottom: 1px solid #E2E8F0; display: flex; justify-content: space-between; align-items: center;
+        }
+        .site-selector { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 1.1rem; cursor: pointer; }
+        
+        .header-actions { display: flex; gap: 15px; align-items: center; }
+        .action-icon { font-size: 1.2rem; padding: 8px; cursor: pointer; color: var(--primary); background: #EEF2FF; border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; }
+        .profile-icon { background: #F1F5F9; color: var(--text-sub); }
+
+        /* VIEWS */
+        .view-section { display: none; animation: fadeIn 0.3s; }
+        .view-section.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* MONTH NAV */
+        .month-nav { display: flex; align-items: center; justify-content: space-between; padding: 10px 20px; background: white; border-bottom: 1px solid #E2E8F0; margin-bottom: 15px; }
+        .current-month { font-weight: 700; font-size: 1rem; color: var(--text-main); }
+        .nav-arrow { background: none; border: none; font-size: 1.2rem; color: var(--text-sub); padding: 5px 10px; cursor: pointer; }
+
+        /* DATE NAV */
+        .date-nav-container { display: flex; align-items: center; justify-content: space-between; padding: 15px 10px; background: white; border-bottom: 1px solid #E2E8F0; }
+        .date-strip { display: flex; gap: 10px; justify-content: center; flex-grow: 1; }
+        .date-item { width: 60px; height: 70px; border-radius: 14px; border: 1px solid transparent; display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--bg); color: var(--text-sub); transition: all 0.2s; cursor: pointer; }
+        .date-item.active { background: var(--text-main); color: white; border-color: var(--text-main); transform: scale(1.1); box-shadow: 0 4px 10px rgba(0,0,0,0.1); z-index: 2; }
+        .date-item:not(.active) { transform: scale(0.9); opacity: 0.7; }
+
+        /* STATS */
+        .stats-row { padding: 20px; display: flex; gap: 15px; }
+        .stat-card { flex: 1; background: white; padding: 12px; border-radius: 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); text-align: center; }
+        .stat-val { font-weight: 700; font-size: 1.1rem; display: block; }
+        .stat-lbl { font-size: 0.7rem; color: var(--text-sub); text-transform: uppercase; }
+        
+        .worker-card { background: var(--surface); border-radius: 16px; margin: 0 20px 16px 20px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); border: 1px solid #E2E8F0; position: relative; overflow: hidden; }
+        .card-header-clickable { padding: 16px; cursor: pointer; } 
+        .card-header-clickable:active { background-color: #f8fafc; }
+        .card-top { display: flex; justify-content: space-between; align-items: center; }
+        .profile-info { display: flex; align-items: center; gap: 12px; }
+        .avatar { width: 40px; height: 40px; background: #F1F5F9; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-weight: 700; color: var(--text-sub); }
+        .card-controls { padding: 0 16px 16px 16px; }
+        .pha-control { background: #F8FAFC; padding: 5px; border-radius: 12px; display: flex; gap: 5px; margin-bottom: 15px; }
+        .pha-opt { flex: 1; height: 40px; display: flex; align-items: center; justify-content: center; font-weight: 700; border-radius: 8px; cursor: pointer; color: var(--text-sub); }
+        .pha-opt.selected.p { background: var(--green); color: white; }
+        .pha-opt.selected.h { background: var(--orange); color: white; }
+        .pha-opt.selected.a { background: var(--red); color: white; }
+        .modern-input { width: 100%; background: #F1F5F9; border: none; padding: 12px; border-radius: 10px; font-size: 0.9rem; outline: none; }
+
+        /* MONEY */
+        .money-summary { background: var(--text-main); color: white; margin: 0 20px 20px 20px; padding: 20px; border-radius: 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.3); }
+        .balance-amount { font-size: 2rem; font-weight: 700; }
+        .money-actions { display: flex; gap: 10px; margin: 0 20px 20px 20px; }
+        .action-btn { flex: 1; padding: 15px; border-radius: 12px; border: none; font-weight: 600; font-size: 1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; color: white; }
+        .btn-in { background: var(--green); } .btn-out { background: var(--red); }
+        .tx-list { padding: 0 20px; }
+        .tx-card { background: white; padding: 15px; border-radius: 12px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #E2E8F0; cursor: pointer; transition: background 0.2s; }
+        .tx-card:active { background: #F8FAFC; }
+        .tx-left { display: flex; gap: 12px; align-items: center; }
+        .tx-icon { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; }
+        .tx-icon.in { background: #DCFCE7; color: var(--green); } .tx-icon.out { background: #FEE2E2; color: var(--red); }
+
+        /* SITES */
+        .site-card { background: white; margin: 20px; padding: 20px; border-radius: 16px; border: 1px solid #E2E8F0; position: relative; overflow: hidden; }
+        .site-card.active { border: 2px solid var(--primary); }
+        .site-card.active::after { content: 'Active'; position: absolute; top: 0; right: 0; background: var(--primary); color: white; font-size: 0.7rem; padding: 4px 12px; border-bottom-left-radius: 10px; }
+
+        /* BOTTOM NAV */
+        .bottom-nav { position: fixed; bottom: 0; width: 100%; background: white; border-top: 1px solid #E2E8F0; display: flex; justify-content: space-around; padding: 12px 0 25px 0; z-index: 100; }
+        .nav-item { display: flex; flex-direction: column; align-items: center; gap: 5px; color: #94A3B8; font-size: 0.75rem; font-weight: 600; text-decoration: none; }
+        .nav-item i { font-size: 1.4rem; }
+        .nav-item.active { color: var(--text-main); }
+
+        /* MODALS */
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 200; display: none; align-items: center; justify-content: center; }
+        .modal-overlay.active { display: flex; }
+        .modal-card { background: white; width: 90%; max-width: 400px; border-radius: 20px; padding: 25px; }
+        
+        /* SLIDE MODALS */
+        .slide-modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 210; display: none; align-items: flex-end; }
+        .slide-modal-overlay.active { display: flex; }
+        .slide-modal-card { background: white; width: 100%; border-radius: 24px 24px 0 0; padding: 25px; animation: slideUp 0.3s forwards; transform: translateY(100%); }
+        @keyframes slideUp { to { transform: translateY(0); } }
+
+        .form-group { margin-bottom: 15px; }
+        .form-label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 5px; color: var(--text-sub); }
+        .btn-primary { width: 100%; background: var(--text-main); color: white; padding: 15px; border-radius: 12px; border: none; font-weight: 600; font-size: 1rem; cursor: pointer; }
+        .btn-danger { width: 100%; background: #FEF2F2; color: var(--red); padding: 15px; border-radius: 12px; border: 1px solid #FEE2E2; font-weight: 600; cursor: pointer; }
+        .btn-outline { width: 100%; background: white; color: var(--text-main); padding: 15px; border-radius: 12px; border: 1px solid #E2E8F0; font-weight: 600; cursor: pointer; margin-top: 10px; }
+
+        .detail-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #F1F5F9; }
+        .detail-row label { color: var(--text-sub); font-size: 0.9rem; }
+        .detail-row span { font-weight: 600; color: var(--text-main); text-align: right; }
+        
+        .profile-menu-item { display: flex; align-items: center; gap: 15px; padding: 15px 0; border-bottom: 1px solid #F1F5F9; cursor: pointer; }
+        .profile-menu-item i { width: 20px; color: var(--text-sub); }
+        .profile-menu-item:last-child { border-bottom: none; }
+        
+        .lang-select { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #E2E8F0; margin-top: 5px; background: white; }
+
+    </style>
+</head>
+<body>
+
+    <header class="app-header">
+        <div class="site-selector" onclick="switchTab('sites')">
+            <span id="headerSiteName">...</span>
+            <i class="fa-solid fa-chevron-down" style="font-size: 0.8rem; color: var(--text-sub);"></i>
+        </div>
+        <div class="header-actions">
+            <div class="action-icon profile-icon" onclick="openProfile()"><i class="fa-solid fa-user"></i></div>
+            <div class="action-icon" onclick="handleHeaderAction()"><i class="fa-solid fa-plus"></i></div>
+        </div>
+    </header>
+
+    <div id="view-register" class="view-section active">
+        <div class="date-nav-container">
+            <button class="nav-arrow" onclick="changeDate(-1)"><i class="fa-solid fa-chevron-left"></i></button>
+            <div class="date-strip" id="dateStrip"></div>
+            <button class="nav-arrow" onclick="changeDate(1)"><i class="fa-solid fa-chevron-right"></i></button>
+        </div>
+        
+        <div class="stats-row">
+            <div class="stat-card"><span class="stat-val" style="color: var(--green)" id="statPresent">0</span><span class="stat-lbl t-pres">Pres</span></div>
+            <div class="stat-card"><span class="stat-val" style="color: var(--red)" id="statAbsent">0</span><span class="stat-lbl t-abs">Abs</span></div>
+            <div class="stat-card"><span class="stat-val" id="statPay">₹0</span><span class="stat-lbl t-cost">Cost</span></div>
+        </div>
+
+        <div id="workerList"></div>
+    </div>
+
+    <div id="view-money" class="view-section">
+        <div class="month-nav">
+            <button class="nav-arrow" onclick="changeMoneyMonth(-1)"><i class="fa-solid fa-chevron-left"></i></button>
+            <span id="moneyMonthDisplay" class="current-month">...</span>
+            <button class="nav-arrow" onclick="changeMoneyMonth(1)"><i class="fa-solid fa-chevron-right"></i></button>
+        </div>
+
+        <div class="money-summary">
+            <div>
+                <span class="balance-label t-month-bal">Month Balance</span>
+                <div class="balance-amount" id="balanceDisplay">₹0</div>
+            </div>
+            <div style="text-align: right;">
+                <div style="font-size: 0.8rem; opacity: 0.8;"><span class="t-in">In</span>: <span id="totalIn">₹0</span></div>
+                <div style="font-size: 0.8rem; opacity: 0.8;"><span class="t-out">Out</span>: <span id="totalOut">₹0</span></div>
+            </div>
+        </div>
+        <div class="money-actions">
+            <button class="action-btn btn-in" onclick="openTxModal('credit')"><i class="fa-solid fa-arrow-down"></i> <span class="t-received">Received</span></button>
+            <button class="action-btn btn-out" onclick="openTxModal('debit')"><i class="fa-solid fa-arrow-up"></i> <span class="t-expense">Expense</span></button>
+        </div>
+        <div class="tx-list" id="txList"></div>
+    </div>
+
+    <div id="view-sites" class="view-section">
+        <div style="padding: 20px;"><h2 class="t-projects">Your Projects</h2></div>
+        <div id="sitesList"></div>
+        <div style="padding: 20px;">
+            <button class="btn-primary t-add-project" onclick="openAddSiteModal()">+ Add New Project</button>
+        </div>
+    </div>
+
+    <nav class="bottom-nav">
+        <div class="nav-item active" id="nav-register" onclick="switchTab('register')"><i class="fa-solid fa-clipboard-user"></i><span class="t-nav-reg">Register</span></div>
+        <div class="nav-item" id="nav-money" onclick="switchTab('money')"><i class="fa-solid fa-wallet"></i><span class="t-nav-money">Money</span></div>
+        <div class="nav-item" id="nav-sites" onclick="switchTab('sites')"><i class="fa-solid fa-building"></i><span class="t-nav-sites">Sites</span></div>
+    </nav>
+
+    <div class="modal-overlay" id="modalSite"><div class="modal-card"><h3 class="t-add-project">Add New Site</h3><div class="form-group"><label class="form-label t-site-name">Site Name</label><input type="text" id="inputSiteName" class="modern-input"></div><div class="form-group"><label class="form-label t-location">Location</label><input type="text" id="inputSiteLoc" class="modern-input"></div><button class="btn-primary t-save" onclick="saveNewSite()">Create Site</button><button class="btn-outline t-cancel" onclick="closeModals()">Cancel</button></div></div>
+    
+    <div class="modal-overlay" id="modalWorker"><div class="modal-card"><h3 class="t-add-worker">Add Worker</h3><div class="form-group"><label class="form-label t-name">Name</label><input type="text" id="inputWorkerName" class="modern-input"></div><div class="form-group"><label class="form-label t-role">Role</label><input type="text" id="inputWorkerRole" class="modern-input"></div><div class="form-group"><label class="form-label t-wage">Wage (₹)</label><input type="number" id="inputWorkerWage" class="modern-input"></div><button class="btn-primary t-save" onclick="saveNewWorker()">Add Worker</button><button class="btn-outline t-cancel" onclick="closeModals()">Cancel</button></div></div>
+
+    <div class="modal-overlay" id="modalTx">
+        <div class="modal-card">
+            <h3 id="txModalTitle">Transaction</h3>
+            <div class="form-group"><label class="form-label t-date">Date</label><input type="date" id="inputTxDate" class="modern-input"></div>
+            <div class="form-group"><label class="form-label t-amount">Amount (₹)</label><input type="number" id="inputTxAmount" class="modern-input"></div>
+            <div class="form-group"><label class="form-label t-desc">Description</label><input type="text" id="inputTxDesc" class="modern-input"></div>
+            <input type="hidden" id="inputTxType">
+            <button class="btn-primary t-save" onclick="saveTransaction()">Save</button>
+            <button class="btn-outline t-cancel" onclick="closeModals()">Cancel</button>
+        </div>
+    </div>
+
+    <div class="slide-modal-overlay" id="modalProfile">
+        <div class="slide-modal-card">
+            <h3 class="t-account">My Account</h3>
+            
+            <div class="form-group" style="margin-top:20px">
+                <label class="form-label t-language">Language / भाषा</label>
+                <select id="langSelect" class="lang-select" onchange="changeLanguage(this.value)">
+                    <option value="en">English</option>
+                    <option value="hi">हिंदी (Hindi)</option>
+                </select>
+            </div>
+
+            <div class="profile-menu-item" style="color:var(--red); margin-top:20px" onclick="logout()">
+                <i class="fa-solid fa-arrow-right-from-bracket"></i>
+                <span class="t-logout">Log Out</span>
+            </div>
+            <button class="btn-outline t-close" onclick="closeModals()">Close</button>
+        </div>
+    </div>
+
+    <div class="slide-modal-overlay" id="modalTxDetail">
+        <div class="slide-modal-card">
+            <div class="card-top" style="margin-bottom:15px">
+                <h3 id="detailTxTitle" style="margin:0">Details</h3>
+                <div class="action-icon" onclick="editCurrentTx()"><i class="fa-solid fa-pen" style="color:var(--primary)"></i></div>
+            </div>
+            <div class="detail-row"><label class="t-date">Date</label><span id="detailTxDate"></span></div>
+            <div class="detail-row"><label class="t-desc">Description</label><span id="detailTxDesc"></span></div>
+            <div class="detail-row" style="border:none"><label class="t-amount">Amount</label><span id="detailTxAmount" style="font-size:1.5rem"></span></div>
+            <div style="margin-top:20px; display:flex; gap:10px">
+                <button class="btn-danger t-delete" onclick="deleteCurrentTx()">Delete</button>
+                <button class="btn-primary t-close" style="background:white; color:#666; border:1px solid #ccc" onclick="closeModals()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = "http://localhost:3000/api"; 
+        
+        // --- TRANSLATION DICTIONARY ---
+        const translations = {
+            en: {
+                pres: "Present", abs: "Absent", cost: "Cost",
+                month_bal: "Month Balance", in: "In", out: "Out",
+                received: "Received", expense: "Expense",
+                projects: "Your Projects", add_project: "+ Add New Project",
+                nav_reg: "Register", nav_money: "Money", nav_sites: "Sites",
+                site_name: "Site Name", location: "Location", save: "Save", cancel: "Cancel",
+                add_worker: "Add Worker", name: "Name", role: "Role", wage: "Wage (₹)",
+                date: "Date", amount: "Amount", desc: "Description",
+                account: "My Account", language: "Language", logout: "Log Out", close: "Close",
+                delete: "Delete"
+            },
+            hi: {
+                pres: "उपस्थित", abs: "अनुपस्थित", cost: "खर्च",
+                month_bal: "महीने का बैलेंस", in: "आया", out: "गया",
+                received: "प्राप्त हुआ", expense: "खर्च हुआ",
+                projects: "आपके प्रोजेक्ट्स", add_project: "+ नया प्रोजेक्ट",
+                nav_reg: "हाज़िरी", nav_money: "हिसाब", nav_sites: "साइट्स",
+                site_name: "साइट का नाम", location: "स्थान", save: "सेव करें", cancel: "रद्द करें",
+                add_worker: "वर्कर जोड़ें", name: "नाम", role: "काम (Role)", wage: "दिहाड़ी (₹)",
+                date: "तारीख", amount: "राशि", desc: "विवरण",
+                account: "मेरा अकाउंट", language: "भाषा", logout: "लॉग आउट", close: "बंद करें",
+                delete: "हटाएं"
+            }
+        };
+
+        // --- AUTH & STATE ---
+        const token = localStorage.getItem('token');
+        if (!token) window.location.href = 'login.html';
+
+        const defaultData = { currentSiteId: null, sites: [], workers: [], attendance: {}, transactions: [] };
+        let appData = defaultData;
+        let selectedDate = new Date().toISOString().split('T')[0];
+        let currentTab = 'register';
+        let currentMoneyDate = new Date();
+        let editingTxId = null; 
+        let viewingTxId = null; 
+        
+        // Language State
+        let currentLang = 'en'; // Default, will update from DB
+
+        async function authFetch(url, options = {}) {
+            if (!options.headers) options.headers = {};
+            options.headers['Authorization'] = 'Bearer ' + token;
+            options.headers['Content-Type'] = 'application/json';
+            try {
+                const response = await fetch(url, options);
+                if (response.status === 401 || response.status === 403) {
+                    localStorage.removeItem('token');
+                    window.location.href = 'login.html';
+                    return null;
+                }
+                return response;
+            } catch (err) { console.error(err); return null; }
+        }
+
+        async function init() {
+            const res = await authFetch(`${API_URL}/data`);
+            if(!res) return;
+            const serverData = await res.json();
+            
+            // Set Language from Server
+            if (serverData.user && serverData.user.lang) {
+                currentLang = serverData.user.lang;
+                document.getElementById('langSelect').value = currentLang;
+            }
+
+            appData = {
+                sites: serverData.sites || [],
+                workers: serverData.workers || [],
+                attendance: serverData.attendance || {},
+                transactions: serverData.transactions || [],
+                currentSiteId: null
+            };
+
+            if (appData.sites.length > 0) {
+                const lastSite = localStorage.getItem('lastSiteId');
+                const exists = appData.sites.find(s => s.id == lastSite);
+                appData.currentSiteId = exists ? exists.id : appData.sites[0].id;
+            }
+            
+            document.getElementById('inputTxDate').valueAsDate = new Date();
+            renderAll();
+        }
+
+        // --- LANGUAGE ENGINE ---
+        function t(key) {
+            return translations[currentLang][key] || key;
+        }
+
+        function applyTranslations() {
+            // Mapping class names to dictionary keys
+            const map = {
+                't-pres': 'pres', 't-abs': 'abs', 't-cost': 'cost',
+                't-month-bal': 'month_bal', 't-in': 'in', 't-out': 'out',
+                't-received': 'received', 't-expense': 'expense',
+                't-projects': 'projects', 't-add-project': 'add_project',
+                't-nav-reg': 'nav_reg', 't-nav-money': 'nav_money', 't-nav-sites': 'nav_sites',
+                't-site-name': 'site_name', 't-location': 'location', 't-save': 'save', 't-cancel': 'cancel',
+                't-add-worker': 'add_worker', 't-name': 'name', 't-role': 'role', 't-wage': 'wage',
+                't-date': 'date', 't-amount': 'amount', 't-desc': 'desc',
+                't-account': 'account', 't-language': 'language', 't-logout': 'logout', 't-close': 'close',
+                't-delete': 'delete'
+            };
+
+            for (const [cls, key] of Object.entries(map)) {
+                document.querySelectorAll('.' + cls).forEach(el => el.innerText = t(key));
+            }
+        }
+
+        async function changeLanguage(newLang) {
+            currentLang = newLang;
+            renderAll(); // Re-render to update text
+            
+            // Save to Backend
+            await authFetch(`${API_URL}/user/lang`, {
+                method: 'POST',
+                body: JSON.stringify({ lang: newLang })
+            });
+        }
+
+        function renderAll() {
+            applyTranslations(); // Apply text updates
+            renderHeader();
+            if(currentTab === 'register') { renderDateStrip(); renderWorkers(); }
+            if(currentTab === 'money') { renderMoney(); }
+            if(currentTab === 'sites') { renderSites(); }
+        }
+
+        // --- RENDER FUNCTIONS (Same as before) ---
+        function renderHeader() {
+            const site = appData.sites.find(s => s.id === appData.currentSiteId);
+            document.getElementById('headerSiteName').innerText = site ? site.name : (currentLang==='hi' ? "साइट चुनें" : "Select Site");
+        }
+
+        function switchTab(tabName) {
+            currentTab = tabName;
+            document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
+            document.getElementById(`view-${tabName}`).classList.add('active');
+            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+            document.getElementById(`nav-${tabName}`).classList.add('active');
+            renderAll();
+        }
+
+        function changeDate(offset) {
+            const d = new Date(selectedDate);
+            d.setDate(d.getDate() + offset);
+            selectedDate = d.toISOString().split('T')[0];
+            renderAll();
+        }
+
+        function renderDateStrip() {
+            const strip = document.getElementById('dateStrip');
+            strip.innerHTML = '';
+            const currentObj = new Date(selectedDate);
+            const locales = currentLang === 'hi' ? 'hi-IN' : 'en-US'; // Date locale support
+            for (let i = -1; i <= 1; i++) {
+                const d = new Date(currentObj);
+                d.setDate(currentObj.getDate() + i);
+                const day = d.getDate();
+                const month = d.toLocaleDateString(locales, { month: 'short' });
+                const isSelected = (i === 0);
+                const div = document.createElement('div');
+                div.className = `date-item ${isSelected ? 'active' : ''}`;
+                if(!isSelected) div.onclick = () => changeDate(i);
+                div.innerHTML = `<span style="font-size:0.7rem; font-weight:600">${month}</span><span style="font-size:1.2rem; font-weight:700">${day}</span>`;
+                strip.appendChild(div);
+            }
+        }
+
+        function renderWorkers() {
+            const list = document.getElementById('workerList');
+            list.innerHTML = '';
+            const siteWorkers = appData.workers.filter(w => w.siteId === appData.currentSiteId);
+            
+            if(siteWorkers.length === 0) {
+                const msg = currentLang==='hi' ? "यहाँ कोई वर्कर नहीं है.<br>+ दबाकर जोड़ें." : "No workers here.<br>Tap + to add one.";
+                list.innerHTML = `<div style="text-align:center; padding:40px; color:#666;">${msg}</div>`;
+                calculateStats(); return;
+            }
+
+            siteWorkers.forEach(w => {
+                const key = `${selectedDate}-${w.id}`;
+                const log = appData.attendance[key] || { status: 'P', ot: '', note: '' };
+                const div = document.createElement('div');
+                div.className = 'worker-card';
+                div.innerHTML = `
+                    <div class="card-header-clickable" onclick="window.location.href='labour.html?id=${w.id}'">
+                        <div class="card-top">
+                            <div class="profile-info">
+                                <div class="avatar">${w.name.charAt(0)}</div>
+                                <div><h3>${w.name}</h3><div style="font-size:0.8rem; color:#666">${w.role} • ₹${w.wage}</div></div>
+                            </div>
+                            <div style="color:var(--text-sub);"><i class="fa-solid fa-chevron-right"></i></div>
+                        </div>
+                    </div>
+                    <div class="card-controls">
+                        <div class="pha-control">
+                            <div class="pha-opt ${log.status==='P'?'selected p':''}" onclick="setAtt(${w.id}, 'P')">P</div>
+                            <div class="pha-opt ${log.status==='H'?'selected h':''}" onclick="setAtt(${w.id}, 'H')">H</div>
+                            <div class="pha-opt ${log.status==='A'?'selected a':''}" onclick="setAtt(${w.id}, 'A')">A</div>
+                        </div>
+                        <div style="display:flex; gap:10px">
+                            <input type="number" placeholder="OT" class="modern-input" value="${log.ot}" onchange="updateLog(${w.id}, 'ot', this.value)">
+                            <input type="text" placeholder="${currentLang==='hi'?'नोट':'Note'}" class="modern-input" value="${log.note}" onchange="updateLog(${w.id}, 'note', this.value)">
+                        </div>
+                    </div>
+                `;
+                list.appendChild(div);
+            });
+            calculateStats();
+        }
+
+        async function setAtt(wid, status) {
+            const key = `${selectedDate}-${wid}`;
+            if(!appData.attendance[key]) appData.attendance[key] = { ot: '', note: '' };
+            appData.attendance[key].status = status;
+            renderWorkers(); 
+            await authFetch(`${API_URL}/attendance`, { method: 'POST', body: JSON.stringify({ key, data: appData.attendance[key] }) });
+        }
+        async function updateLog(wid, field, val) {
+            const key = `${selectedDate}-${wid}`;
+            if(!appData.attendance[key]) appData.attendance[key] = { status: 'P', ot: '', note: '' };
+            appData.attendance[key][field] = val;
+            calculateStats();
+            await authFetch(`${API_URL}/attendance`, { method: 'POST', body: JSON.stringify({ key, data: appData.attendance[key] }) });
+        }
+        function calculateStats() {
+            let p = 0, a = 0, cost = 0;
+            const siteWorkers = appData.workers.filter(w => w.siteId === appData.currentSiteId);
+            siteWorkers.forEach(w => {
+                const key = `${selectedDate}-${w.id}`;
+                const log = appData.attendance[key] || { status: 'P', ot: 0 };
+                if(log.status === 'P') { p++; cost += Number(w.wage) + ((w.wage/8)*(log.ot||0)); }
+                else if(log.status === 'H') { p++; cost += (w.wage/2); }
+                else { a++; }
+            });
+            document.getElementById('statPresent').innerText = p;
+            document.getElementById('statAbsent').innerText = a;
+            document.getElementById('statPay').innerText = '₹' + Math.floor(cost);
+        }
+
+        function changeMoneyMonth(offset) {
+            currentMoneyDate.setMonth(currentMoneyDate.getMonth() + offset);
+            renderMoney();
+        }
+        function renderMoney() {
+            const locales = currentLang === 'hi' ? 'hi-IN' : 'en-US';
+            const monthStr = currentMoneyDate.toLocaleDateString(locales, { month: 'long', year: 'numeric' });
+            document.getElementById('moneyMonthDisplay').innerText = monthStr;
+
+            const list = document.getElementById('txList');
+            list.innerHTML = '';
+            
+            const txs = appData.transactions.filter(t => {
+                const tDate = new Date(t.date);
+                return t.siteId === appData.currentSiteId && 
+                       tDate.getMonth() === currentMoneyDate.getMonth() && 
+                       tDate.getFullYear() === currentMoneyDate.getFullYear();
+            });
+
+            let totalIn = 0, totalOut = 0;
+            txs.sort((a,b) => new Date(b.date) - new Date(a.date)).forEach(tx => {
+                if(tx.type === 'credit') totalIn += Number(tx.amount); else totalOut += Number(tx.amount);
+                const div = document.createElement('div');
+                div.className = 'tx-card';
+                div.onclick = () => openTxDetail(tx.id);
+                div.innerHTML = `
+                    <div class="tx-left">
+                        <div class="tx-icon ${tx.type === 'credit' ? 'in' : 'out'}"><i class="fa-solid ${tx.type === 'credit' ? 'fa-arrow-down' : 'fa-arrow-up'}"></i></div>
+                        <div class="tx-meta"><h4>${tx.desc}</h4><span>${new Date(tx.date).toLocaleDateString(locales)}</span></div>
+                    </div>
+                    <div class="tx-amount" style="color: ${tx.type === 'credit' ? 'var(--green)' : 'var(--red)'}">${tx.type === 'credit' ? '+' : '-'}₹${tx.amount}</div>
+                `;
+                list.appendChild(div);
+            });
+            
+            if(txs.length === 0) list.innerHTML = `<div style="text-align:center; padding:40px; color:#666;">${currentLang==='hi' ? "कोई लेन-देन नहीं" : "No transactions"}</div>`;
+            document.getElementById('totalIn').innerText = '₹' + totalIn;
+            document.getElementById('totalOut').innerText = '₹' + totalOut;
+            document.getElementById('balanceDisplay').innerText = '₹' + (totalIn - totalOut);
+        }
+
+        // --- MODAL & ACTION HANDLERS ---
+        function openTxModal(type) {
+            editingTxId = null; 
+            document.getElementById('inputTxType').value = type;
+            document.getElementById('txModalTitle').innerText = type === 'credit' ? t('received') : t('expense');
+            document.getElementById('inputTxAmount').value = '';
+            document.getElementById('inputTxDesc').value = '';
+            document.getElementById('inputTxDate').valueAsDate = new Date();
+            document.getElementById('modalTx').classList.add('active');
+        }
+        function openTxDetail(id) {
+            viewingTxId = id;
+            const tx = appData.transactions.find(t => t.id === id);
+            if(!tx) return;
+            document.getElementById('detailTxDate').innerText = new Date(tx.date).toLocaleDateString();
+            document.getElementById('detailTxDesc').innerText = tx.desc;
+            const color = tx.type === 'credit' ? 'var(--green)' : 'var(--red)';
+            document.getElementById('detailTxAmount').innerHTML = `<span style="color:${color}">${tx.type==='credit'?'+':'-'} ₹${tx.amount}</span>`;
+            document.getElementById('modalTxDetail').classList.add('active');
+        }
+        async function deleteCurrentTx() {
+            if(!viewingTxId) return;
+            if(confirm("Delete?")) {
+                appData.transactions = appData.transactions.filter(t => t.id !== viewingTxId);
+                closeModals(); renderMoney();
+                await authFetch(`${API_URL}/transactions/${viewingTxId}`, { method: 'DELETE' });
+            }
+        }
+        async function saveTransaction() {
+            const amount = document.getElementById('inputTxAmount').value;
+            const desc = document.getElementById('inputTxDesc').value;
+            const type = document.getElementById('inputTxType').value;
+            const dateVal = document.getElementById('inputTxDate').value; 
+            if(!amount || !dateVal) return;
+            const txData = { id: editingTxId || Date.now(), siteId: appData.currentSiteId, type, amount, desc, date: dateVal };
+            if (editingTxId) {
+                const index = appData.transactions.findIndex(t => t.id === editingTxId);
+                if(index !== -1) appData.transactions[index] = txData;
+            } else appData.transactions.push(txData);
+            closeModals(); renderMoney();
+            await authFetch(`${API_URL}/transactions`, { method: 'POST', body: JSON.stringify(txData) });
+        }
+        
+        function renderSites() {
+            const list = document.getElementById('sitesList');
+            list.innerHTML = '';
+            appData.sites.forEach(site => {
+                const isActive = site.id === appData.currentSiteId;
+                const div = document.createElement('div');
+                div.className = `site-card ${isActive ? 'active' : ''}`;
+                div.onclick = () => { appData.currentSiteId = site.id; localStorage.setItem('lastSiteId', site.id); renderSites(); renderHeader(); };
+                div.innerHTML = `<h3 style="margin:0">${site.name}</h3><div class="site-loc"><i class="fa-solid fa-location-dot"></i> ${site.loc}</div>`;
+                list.appendChild(div);
+            });
+        }
+
+        function closeModals() { 
+            document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('active'));
+            document.querySelectorAll('.slide-modal-overlay').forEach(m => m.classList.remove('active'));
+        }
+        function openProfile() { document.getElementById('modalProfile').classList.add('active'); }
+        function handleHeaderAction() {
+            if(currentTab === 'register') document.getElementById('modalWorker').classList.add('active');
+            else if(currentTab === 'sites') document.getElementById('modalSite').classList.add('active');
+            else if(currentTab === 'money') openTxModal('debit');
+        }
+        function openAddSiteModal() { document.getElementById('modalSite').classList.add('active'); }
+        async function saveNewSite() {
+            const name = document.getElementById('inputSiteName').value;
+            const loc = document.getElementById('inputSiteLoc').value;
+            if(!name) return;
+            const newSite = { id: Date.now(), name, loc };
+            appData.sites.push(newSite);
+            appData.currentSiteId = newSite.id;
+            closeModals(); renderAll();
+            await authFetch(`${API_URL}/sites`, { method: 'POST', body: JSON.stringify(newSite) });
+        }
+        async function saveNewWorker() {
+            const name = document.getElementById('inputWorkerName').value;
+            const role = document.getElementById('inputWorkerRole').value;
+            const wage = document.getElementById('inputWorkerWage').value;
+            if(!name || !wage) return;
+            const newWorker = { id: Date.now(), siteId: appData.currentSiteId, name, role, wage };
+            appData.workers.push(newWorker);
+            closeModals(); renderWorkers();
+            await authFetch(`${API_URL}/workers`, { method: 'POST', body: JSON.stringify(newWorker) });
+        }
+        function logout() { localStorage.removeItem('token'); window.location.href = 'login.html'; }
+        function editCurrentTx() {
+            if(!viewingTxId) return;
+            const tx = appData.transactions.find(t => t.id === viewingTxId);
+            if(!tx) return;
+            document.getElementById('modalTxDetail').classList.remove('active');
+            editingTxId = tx.id;
+            document.getElementById('txModalTitle').innerText = t('edit'); // Add edit to dictionary if needed, simplified here
+            document.getElementById('inputTxType').value = tx.type;
+            document.getElementById('inputTxAmount').value = tx.amount;
+            document.getElementById('inputTxDesc').value = tx.desc;
+            document.getElementById('inputTxDate').value = tx.date;
+            document.getElementById('modalTx').classList.add('active');
+        }
+
+        init();
+    </script>
+</body>
+</html>

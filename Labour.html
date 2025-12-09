@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Worker Profile</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        :root {
+            --primary: #4F46E5;
+            --bg: #F1F5F9;
+            --surface: #FFFFFF;
+            --text-main: #0F172A;
+            --text-sub: #64748B;
+            --green: #10B981;
+            --red: #EF4444;
+            --orange: #F59E0B;
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text-main); margin: 0; padding-bottom: 40px; }
+
+        /* HEADER */
+        .profile-header { background: white; padding: 20px; border-bottom: 1px solid #E2E8F0; display: flex; align-items: center; gap: 15px; position: sticky; top: 0; z-index: 50; }
+        .back-btn { font-size: 1.2rem; color: var(--text-main); text-decoration: none; padding: 5px 10px 5px 0; }
+        .big-avatar { width: 50px; height: 50px; background: #F1F5F9; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; font-weight: 700; color: var(--text-sub); }
+        .profile-meta h2 { margin: 0; font-size: 1.1rem; }
+        .profile-meta p { margin: 2px 0 0 0; font-size: 0.85rem; color: var(--text-sub); }
+
+        /* MONTH NAV */
+        .month-nav { display: flex; align-items: center; justify-content: space-between; padding: 15px 20px; background: var(--surface); margin-top: 10px; border-top: 1px solid #E2E8F0; border-bottom: 1px solid #E2E8F0; }
+        .nav-arrow { background: none; border: none; font-size: 1.2rem; color: var(--text-sub); padding: 10px; cursor: pointer; width: 40px; }
+        .current-month { font-weight: 700; font-size: 1rem; background: #F8FAFC; padding: 8px 16px; border-radius: 10px; color: var(--text-main); }
+
+        /* STATS (Horizontally Scrollable) */
+        .stats-container { 
+            overflow-x: auto; 
+            padding: 15px 20px; 
+            display: flex; 
+            gap: 12px; 
+            scrollbar-width: none; /* Firefox */
+        }
+        .stats-container::-webkit-scrollbar { display: none; /* Chrome/Safari */ }
+        
+        .m-stat-card { 
+            min-width: 85px; 
+            flex-shrink: 0; /* Prevent shrinking */
+            background: white; 
+            padding: 12px 10px; 
+            border-radius: 12px; 
+            text-align: center; 
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05); 
+            border: 1px solid #E2E8F0;
+        }
+        .ms-val { font-weight: 800; font-size: 1.1rem; display: block; margin-bottom: 2px; }
+        .ms-lbl { font-size: 0.65rem; color: var(--text-sub); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
+        
+        /* Highlight Total Box */
+        .total-card { border: 2px solid var(--text-main); background: #F8FAFC; min-width: 100px; }
+
+        /* LOG LIST */
+        .log-list { padding: 0 20px; }
+        .log-row { display: flex; justify-content: space-between; align-items: center; background: white; padding: 8px 15px; border-radius: 12px; margin-bottom: 8px; border: 1px solid #E2E8F0; min-height: 55px; }
+        .log-date { display: flex; gap: 10px; align-items: center; font-weight: 600; font-size: 0.95rem; min-width: 90px; }
+        .log-date span { color: var(--text-sub); font-size: 0.8rem; font-weight: 400; width: 30px; }
+        .log-right { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; }
+
+        /* BUTTONS & BADGES */
+        .action-group { display: flex; gap: 6px; }
+        .mini-btn { width: 32px; height: 32px; border-radius: 8px; border: 1px solid #E2E8F0; background: #F8FAFC; color: var(--text-sub); font-weight: 700; font-size: 0.8rem; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+        .mini-btn.ot-btn { width: auto; padding: 0 8px; background: #EEF2FF; color: var(--primary); border-color: #C7D2FE; }
+        .mini-btn.pay-btn { width: auto; padding: 0 8px; background: #DCFCE7; color: #166534; border-color: #86EFAC; }
+        
+        .status-badge { width: 32px; height: 32px; border-radius: 8px; font-weight: 700; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        .st-p { background: #DCFCE7; color: var(--green); border: 1px solid #bbf7d0; }
+        .st-a { background: #FEE2E2; color: var(--red); border: 1px solid #fecaca; }
+        .st-h { background: #FEF3C7; color: var(--orange); border: 1px solid #fde68a; }
+        
+        .ot-tag { font-size: 0.75rem; background: #EEF2FF; padding: 2px 6px; border-radius: 4px; color: var(--primary); margin-left: 5px; border: 1px solid #C7D2FE; }
+        .pay-badge { font-size: 0.75rem; font-weight: 600; color: #15803d; background: #f0fdf4; padding: 2px 8px; border-radius: 20px; border: 1px solid #bbf7d0; display: inline-block; cursor: pointer; }
+
+        /* SETTINGS */
+        .settings-section { padding: 20px; margin-top: 20px; background: white; border-top: 1px solid #E2E8F0; }
+        .section-title { font-size: 1rem; font-weight: 700; margin-bottom: 15px; }
+        .form-group { margin-bottom: 15px; }
+        .form-label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 5px; color: var(--text-sub); }
+        .modern-input { width: 100%; background: #F8FAFC; border: 1px solid #E2E8F0; padding: 12px; border-radius: 10px; font-size: 0.95rem; outline: none; }
+        .btn-primary { width: 100%; background: var(--text-main); color: white; padding: 15px; border-radius: 12px; border: none; font-weight: 600; cursor: pointer; }
+        .btn-danger { width: 100%; background: #FEF2F2; color: var(--red); padding: 15px; border-radius: 12px; border: 1px solid #FEE2E2; font-weight: 600; cursor: pointer; margin-top: 15px; }
+
+        /* MODALS */
+        .slide-modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 200; display: none; align-items: flex-end; }
+        .slide-modal-overlay.active { display: flex; }
+        .slide-modal-card { background: white; width: 100%; border-radius: 24px 24px 0 0; padding: 25px; animation: slideUp 0.3s forwards; transform: translateY(100%); }
+        @keyframes slideUp { to { transform: translateY(0); } }
+
+    </style>
+</head>
+<body>
+
+    <div class="profile-header">
+        <a href="index.html" class="back-btn"><i class="fa-solid fa-arrow-left"></i></a>
+        <div class="big-avatar" id="dAvatar"></div>
+        <div class="profile-meta"><h2 id="dName">Loading...</h2><p id="dRole">...</p></div>
+    </div>
+
+    <div class="month-nav">
+        <button class="nav-arrow" onclick="changeMonth(-1)"><i class="fa-solid fa-chevron-left"></i></button>
+        <span class="current-month" id="displayMonth">Loading...</span>
+        <button class="nav-arrow" onclick="changeMonth(1)"><i class="fa-solid fa-chevron-right"></i></button>
+    </div>
+
+    <div class="stats-container">
+        <div class="m-stat-card"><span class="ms-val" style="color:var(--green)" id="cntP">0</span><span class="ms-lbl">Present</span></div>
+        <div class="m-stat-card"><span class="ms-val" style="color:var(--orange)" id="cntH">0</span><span class="ms-lbl">Half Day</span></div>
+        <div class="m-stat-card"><span class="ms-val" style="color:var(--red)" id="cntA">0</span><span class="ms-lbl">Absent</span></div>
+        <div class="m-stat-card"><span class="ms-val" style="color:var(--primary)" id="sumOT">0</span><span class="ms-lbl">OT</span></div>
+        
+        <div class="m-stat-card"><span class="ms-val" id="sumEarned">₹0</span><span class="ms-lbl">Work</span></div>
+        <div class="m-stat-card"><span class="ms-val" style="color:#15803d" id="sumPaid">₹0</span><span class="ms-lbl">Paid</span></div>
+        
+        <div class="m-stat-card total-card"><span class="ms-val" style="color:var(--red)" id="sumDue">₹0</span><span class="ms-lbl">Total</span></div>
+    </div>
+
+    <div class="log-list" id="attendanceList"></div>
+
+    <div class="settings-section">
+        <div class="section-title">Worker Settings</div>
+        <div class="form-group"><label class="form-label">Name</label><input type="text" id="editName" class="modern-input"></div>
+        <div class="form-group"><label class="form-label">Role</label><input type="text" id="editRole" class="modern-input"></div>
+        <div class="form-group"><label class="form-label">Daily Wage (₹)</label><input type="number" id="editWage" class="modern-input"></div>
+        <button class="btn-primary" onclick="saveSettings()">Save Changes</button>
+        <button class="btn-danger" onclick="deleteWorker()">Delete Worker</button>
+    </div>
+
+    <div class="slide-modal-overlay" id="otModal">
+        <div class="slide-modal-card">
+            <h3>Add Overtime</h3>
+            <p style="color:var(--text-sub); margin-bottom:20px;">For <span id="otDateDisplay"></span></p>
+            <div class="form-group"><label class="form-label">Hours</label><input type="number" id="inputOtHours" class="modern-input" placeholder="e.g. 2"></div>
+            <button class="btn-primary" onclick="saveOT()">Save Overtime</button>
+            <button style="width:100%; padding:15px; border:none; background:white; color: #666; margin-top:5px;" onclick="closeModals()">Cancel</button>
+        </div>
+    </div>
+
+    <div class="slide-modal-overlay" id="payModal">
+        <div class="slide-modal-card">
+            <h3>Make Payment</h3>
+            <p style="color:var(--text-sub); margin-bottom:20px;">To <span id="payWorkerDisplay"></span> on <span id="payDateDisplay"></span></p>
+            <div class="form-group"><label class="form-label">Amount (₹)</label><input type="number" id="inputPayAmount" class="modern-input" placeholder="e.g. 500"></div>
+            <button class="btn-primary" onclick="savePayment()">Confirm Payment</button>
+            <button style="width:100%; padding:15px; border:none; background:white; color: #666; margin-top:5px;" onclick="closeModals()">Cancel</button>
+        </div>
+    </div>
+
+    <div class="slide-modal-overlay" id="editPayModal">
+        <div class="slide-modal-card">
+            <h3>Edit Payment</h3>
+            <p style="color:var(--text-sub); margin-bottom:20px;">For <span id="editPayDateDisplay"></span></p>
+            <div class="form-group"><label class="form-label">Amount (₹)</label><input type="number" id="inputEditPayAmount" class="modern-input"></div>
+            <button class="btn-primary" onclick="updatePayment()">Update Amount</button>
+            <button class="btn-danger" style="margin-top:10px" onclick="deletePayment()">Delete Payment</button>
+            <button style="width:100%; padding:15px; border:none; background:white; color: #666; margin-top:5px;" onclick="closeModals()">Cancel</button>
+        </div>
+    </div>
+
+    <script>
+        // --- CONFIGURATION ---
+        // Change to your Render URL when deployed
+        const API_URL = "http://localhost:3000/api"; 
+
+        // --- AUTH CHECK ---
+        const token = localStorage.getItem('token');
+        if (!token) {
+            window.location.href = 'login.html';
+        }
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const workerId = Number(urlParams.get('id'));
+        let appData = null; 
+        let currentMonthDate = new Date(); 
+        let workerIndex = -1;
+        let activeDateStr = null;
+        let currentEditingPayAmount = 0; 
+
+        // --- AUTH FETCH HELPER ---
+        async function authFetch(url, options = {}) {
+            if (!options.headers) options.headers = {};
+            options.headers['Authorization'] = 'Bearer ' + token;
+            options.headers['Content-Type'] = 'application/json';
+
+            try {
+                const response = await fetch(url, options);
+                if (response.status === 401 || response.status === 403) {
+                    localStorage.removeItem('token');
+                    window.location.href = 'login.html';
+                    return null;
+                }
+                return response;
+            } catch (err) {
+                console.error("Network Error:", err);
+                return null;
+            }
+        }
+
+        async function init() {
+            try {
+                // Use authFetch instead of regular fetch
+                const res = await authFetch(`${API_URL}/data`);
+                if(!res) return;
+
+                const serverData = await res.json();
+                
+                appData = {
+                    workers: serverData.workers || [],
+                    attendance: serverData.attendance || {},
+                    transactions: serverData.transactions || []
+                };
+
+                if (!workerId) { window.location.href = 'index.html'; return; }
+                workerIndex = appData.workers.findIndex(w => w.id === workerId);
+                if (workerIndex === -1) { window.location.href = 'index.html'; return; }
+
+                const w = appData.workers[workerIndex];
+                document.getElementById('dAvatar').innerText = w.name.charAt(0);
+                document.getElementById('dName').innerText = w.name;
+                document.getElementById('dRole').innerText = w.role;
+                document.getElementById('editName').value = w.name;
+                document.getElementById('editRole').value = w.role;
+                document.getElementById('editWage').value = w.wage;
+
+                renderMonthLog();
+            } catch (err) {
+                console.error(err);
+                // Only alert if it's a real connection error, not an auth redirect
+                if(token) alert("Database connection error");
+            }
+        }
+
+        function changeMonth(offset) {
+            currentMonthDate.setMonth(currentMonthDate.getMonth() + offset);
+            renderMonthLog();
+        }
+
+        function renderMonthLog() {
+            const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+            document.getElementById('displayMonth').innerText = `${monthNames[currentMonthDate.getMonth()]} ${currentMonthDate.getFullYear()}`;
+
+            const list = document.getElementById('attendanceList');
+            list.innerHTML = '';
+
+            const year = currentMonthDate.getFullYear();
+            const month = currentMonthDate.getMonth();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            
+            let countP = 0, countA = 0, countH = 0, totalOT = 0;
+            let totalEarned = 0, totalPaid = 0;
+            
+            const w = appData.workers[workerIndex];
+
+            for (let day = 1; day <= daysInMonth; day++) {
+                const monthStr = String(month + 1).padStart(2, '0');
+                const dayStr = String(day).padStart(2, '0');
+                const isoDate = `${year}-${monthStr}-${dayStr}`;
+                const dateObj = new Date(year, month, day);
+                const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'short' });
+
+                const key = `${isoDate}-${workerId}`;
+                const log = appData.attendance[key] || {}; 
+
+                if (log.status === 'P') {
+                    countP++;
+                    totalEarned += Number(w.wage);
+                    if (log.ot) {
+                        totalOT += Number(log.ot);
+                        totalEarned += (w.wage/8) * Number(log.ot);
+                    }
+                } else if (log.status === 'H') {
+                    countH++;
+                    totalEarned += (w.wage / 2);
+                } else if (log.status === 'A') {
+                    countA++;
+                }
+
+                if (log.payment) totalPaid += Number(log.payment);
+
+                let statusHtml = '';
+                if (log.status) {
+                    let otTag = log.ot ? `<span class="ot-tag">+${log.ot}h</span>` : '';
+                    let badgeClass = log.status === 'P' ? 'st-p' : (log.status === 'A' ? 'st-a' : 'st-h');
+                    statusHtml = `<div style="display:flex; align-items:center;">${otTag}<div class="status-badge ${badgeClass}" onclick="clearStatus('${isoDate}')">${log.status}</div></div>`;
+                } else {
+                    statusHtml = `
+                        <div class="action-group">
+                            <div class="mini-btn" onclick="setStatus('${isoDate}', 'P')">P</div>
+                            <div class="mini-btn" onclick="setStatus('${isoDate}', 'A')">A</div>
+                            <div class="mini-btn" onclick="setStatus('${isoDate}', 'H')">H</div>
+                            <div class="mini-btn ot-btn" onclick="openOT('${isoDate}')">OT</div>
+                            <div class="mini-btn pay-btn" onclick="openPay('${isoDate}')"><i class="fa-solid fa-money-bill"></i></div>
+                        </div>
+                    `;
+                }
+
+                let paymentHtml = '';
+                if (log.payment) {
+                    paymentHtml = `<div class="pay-badge" onclick="openEditPay('${isoDate}', '${log.payment}')">Paid ₹${log.payment}</div>`;
+                } else if(log.status) {
+                    paymentHtml = `<div style="font-size:0.75rem; color:#15803d; cursor:pointer; margin-top:2px;" onclick="openPay('${isoDate}')">+ Pay</div>`;
+                }
+
+                const row = document.createElement('div');
+                row.className = 'log-row';
+                row.innerHTML = `
+                    <div class="log-date"><span>${dayName}</span>${dayStr}</div>
+                    <div class="log-right">
+                        ${statusHtml}
+                        ${paymentHtml}
+                    </div>
+                `;
+                list.appendChild(row);
+            }
+
+            document.getElementById('cntP').innerText = countP;
+            document.getElementById('cntH').innerText = countH;
+            document.getElementById('cntA').innerText = countA;
+            document.getElementById('sumOT').innerText = totalOT;
+            
+            document.getElementById('sumEarned').innerText = '₹' + Math.floor(totalEarned).toLocaleString();
+            document.getElementById('sumPaid').innerText = '₹' + Math.floor(totalPaid).toLocaleString();
+            
+            const balance = totalEarned - totalPaid;
+            const balEl = document.getElementById('sumDue');
+            balEl.innerText = '₹' + Math.floor(balance).toLocaleString();
+            balEl.style.color = balance > 0 ? 'var(--red)' : 'var(--green)';
+        }
+
+        async function updateAttendanceDB(date) {
+            const key = `${date}-${workerId}`;
+            await authFetch(`${API_URL}/attendance`, {
+                method: 'POST',
+                body: JSON.stringify({ key, data: appData.attendance[key] })
+            });
+        }
+
+        async function setStatus(date, status) {
+            const key = `${date}-${workerId}`;
+            if (!appData.attendance[key]) appData.attendance[key] = {};
+            appData.attendance[key].status = status;
+            if(status !== 'P') delete appData.attendance[key].ot;
+            renderMonthLog();
+            await updateAttendanceDB(date);
+        }
+
+        async function clearStatus(date) {
+            // Confirm just in case (Optional, remove if you want it faster)
+            if(!confirm("Clear attendance for this day?")) return;
+
+            const key = `${date}-${workerId}`;
+            
+            // 1. Update Local Data (So UI changes instantly)
+            if (appData.attendance[key]) {
+                delete appData.attendance[key].status;
+                delete appData.attendance[key].ot;
+            }
+            
+            // 2. Update UI
+            renderMonthLog();
+
+            // 3. Tell Server to Delete fields
+            try {
+                await authFetch(`${API_URL}/attendance/delete-status`, {
+                    method: 'POST',
+                    body: JSON.stringify({ key })
+                });
+            } catch (err) {
+                console.error("Failed to clear status on server", err);
+                alert("Server error: Status might come back on refresh.");
+            }
+        }
+        function closeModals() {
+            document.querySelectorAll('.slide-modal-overlay').forEach(el => el.classList.remove('active'));
+            activeDateStr = null;
+        }
+
+        function openOT(date) {
+            activeDateStr = date;
+            document.getElementById('otDateDisplay').innerText = date;
+            document.getElementById('inputOtHours').value = '';
+            document.getElementById('otModal').classList.add('active');
+        }
+        
+        async function saveOT() {
+            const hrs = document.getElementById('inputOtHours').value;
+            if(!hrs || !activeDateStr) return;
+            const key = `${activeDateStr}-${workerId}`;
+            if (!appData.attendance[key]) appData.attendance[key] = {};
+            appData.attendance[key].status = 'P';
+            appData.attendance[key].ot = hrs;
+            
+            closeModals(); renderMonthLog();
+            await updateAttendanceDB(activeDateStr);
+        }
+
+        function openPay(date) {
+            activeDateStr = date;
+            document.getElementById('payDateDisplay').innerText = date;
+            document.getElementById('payWorkerDisplay').innerText = appData.workers[workerIndex].name;
+            document.getElementById('inputPayAmount').value = '';
+            document.getElementById('payModal').classList.add('active');
+        }
+
+        async function savePayment() {
+            const amountInput = document.getElementById('inputPayAmount').value;
+            // Force it to be a Number
+            const amount = Number(amountInput);
+            
+            if(!amount || !activeDateStr) return;
+            
+            const key = `${activeDateStr}-${workerId}`;
+            if (!appData.attendance[key]) appData.attendance[key] = {};
+            
+            // 1. Update Local Data
+            appData.attendance[key].payment = amount;
+            
+            const w = appData.workers[workerIndex];
+            const txData = { 
+                id: Date.now(), 
+                siteId: w.siteId, 
+                type: 'debit', 
+                amount: amount, 
+                desc: `Payment to ${w.name}`, 
+                date: activeDateStr 
+            };
+            
+            appData.transactions.push(txData);
+            
+            // 2. Update UI
+            closeModals(); 
+            renderMonthLog(); // This ensures it shows up immediately
+
+            // 3. Save to Backend (Attendance)
+            await authFetch(`${API_URL}/attendance`, {
+                method: 'POST',
+                body: JSON.stringify({ key, data: appData.attendance[key] })
+            });
+            
+            // 4. Save to Backend (Transaction)
+            await authFetch(`${API_URL}/transactions`, {
+                method: 'POST',
+                body: JSON.stringify(txData)
+            });
+        }
+
+        function openEditPay(date, amount) {
+            activeDateStr = date;
+            currentEditingPayAmount = amount;
+            document.getElementById('editPayDateDisplay').innerText = date;
+            document.getElementById('inputEditPayAmount').value = amount;
+            document.getElementById('editPayModal').classList.add('active');
+        }
+
+        async function updatePayment() {
+            const newAmount = document.getElementById('inputEditPayAmount').value;
+            if(!newAmount) return;
+            const key = `${activeDateStr}-${workerId}`;
+            if(appData.attendance[key]) appData.attendance[key].payment = newAmount;
+            closeModals(); renderMonthLog();
+            await updateAttendanceDB(activeDateStr);
+        }
+        
+       async function deletePayment() {
+            if(!confirm("Delete this payment badge? (Note: This removes the badge. Please go to Money tab to delete the transaction record.)")) return;
+            
+            const key = `${activeDateStr}-${workerId}`;
+            
+            // 1. Update Local Data
+            if(appData.attendance[key]) {
+                delete appData.attendance[key].payment;
+            }
+            
+            // 2. Update UI
+            closeModals(); 
+            renderMonthLog();
+            
+            // 3. Update Backend (Special route to remove payment field)
+            await authFetch(`${API_URL}/attendance/delete-payment`, {
+                method: 'POST',
+                body: JSON.stringify({ key })
+            });
+        }
+
+        async function saveSettings() {
+            if (workerIndex > -1) {
+                const w = appData.workers[workerIndex];
+                w.name = document.getElementById('editName').value;
+                w.role = document.getElementById('editRole').value;
+                w.wage = Number(document.getElementById('editWage').value);
+                
+                document.getElementById('dName').innerText = w.name;
+                document.getElementById('dRole').innerText = w.role;
+                alert('Updated'); renderMonthLog(); 
+                
+                // You would need an update endpoint here in server.js to persist this
+                // e.g. await authFetch(`${API_URL}/workers/update`, ...)
+            }
+        }
+        
+        function deleteWorker() {
+            if (confirm('Permanently delete this worker?')) {
+                // UI Update
+                appData.workers.splice(workerIndex, 1);
+                window.location.href = 'index.html';
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>
