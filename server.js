@@ -168,5 +168,95 @@ app.delete('/api/transactions/:id', authenticateToken, async (req, res) => {
     res.json({ success: true });
 });
 
+        // --- ADD THIS TO server.js ---
+
+// Delete Worker Route
+app.delete('/api/workers/:id', authenticateToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const userId = req.user.id;
+        
+        // Delete the Worker
+        await Worker.deleteOne({ id: id, userId: userId });
+        
+        // Also Delete their Attendance (Cleanup)
+        // Note: We use regex to find keys ending in "-workerId"
+        await Attendance.deleteMany({ userId: userId, key: { $regex: `-${id}$` } });
+
+        res.json({ success: true });
+    } catch (err) {
+        console.error("Delete Error:", err);
+        res.status(500).json({ error: "Could not delete worker" });
+    }
+});
+async function shareOnWhatsapp() {
+            const w = appData.workers[workerIndex];
+            
+            // 1. Populate the Report Card
+            document.getElementById('rcName').innerText = w.name;
+            const mName = currentMonthDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+            document.getElementById('rcMonth').innerText = mName;
+            document.getElementById('rcDue').innerText = document.getElementById('sumDue').innerText;
+
+            const list = document.getElementById('rcBody');
+            list.innerHTML = '';
+
+            const daysInMonth = new Date(currentMonthDate.getFullYear(), currentMonthDate.getMonth() + 1, 0).getDate();
+            
+            // Loop through days to build the table rows
+            for (let day = 1; day <= daysInMonth; day++) {
+                const monthStr = String(currentMonthDate.getMonth() + 1).padStart(2, '0');
+                const isoDate = `${currentMonthDate.getFullYear()}-${monthStr}-${String(day).padStart(2, '0')}`;
+                const key = `${isoDate}-${workerId}`;
+                const log = appData.attendance[key];
+
+                if (log && (log.status || log.payment)) {
+                    const row = document.createElement('div');
+                    row.style.cssText = "display:flex; padding:5px; border-bottom:1px solid #ccc; font-size:0.9rem;";
+                    
+                    let statusTxt = log.status || '-';
+                    let extraTxt = log.ot ? `(+${log.ot}h)` : '';
+                    if(log.payment) extraTxt += ` Paid ${log.payment}`;
+
+                    row.innerHTML = `
+                        <div style="width:30%; font-weight:700;">${day}</div>
+                        <div style="width:40%; text-align:center;">${statusTxt}</div>
+                        <div style="width:30%; text-align:right;">${extraTxt}</div>
+                    `;
+                    list.appendChild(row);
+                }
+            }
+
+            // 2. Generate Image
+            try {
+                const canvas = await html2canvas(document.getElementById('reportCard'));
+                
+                canvas.toBlob(async (blob) => {
+                    const file = new File([blob], "Worker_Report.png", { type: "image/png" });
+
+                    // 3. Try Native Share (Mobile)
+                    if (navigator.share) {
+                        try {
+                            await navigator.share({
+                                files: [file],
+                                title: 'Worker Report',
+                                text: `Attendance for ${w.name}`
+                            });
+                        } catch (err) {
+                            console.log("Share failed or cancelled", err);
+                        }
+                    } else {
+                        // 4. Fallback for Desktop (Download)
+                        const link = document.createElement('a');
+                        link.download = `Report_${w.name}.png`;
+                        link.href = canvas.toDataURL();
+                        link.click();
+                        alert("Image downloaded! You can now send it on WhatsApp.");
+                    }
+                });
+            } catch (err) {
+                alert("Could not generate image: " + err);
+            }
+        }
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
