@@ -13,11 +13,11 @@ mongoose.connect(process.env.MONGO_URI)
     .then(() => console.log("Connected to MongoDB"))
     .catch(err => console.error("MongoDB error:", err));
 
-// --- 1. UPDATED USER SCHEMA ---
+// --- SCHEMAS ---
 const UserSchema = new mongoose.Schema({
     username: { type: String, required: true, unique: true },
     password: { type: String, required: true },
-    lang: { type: String, default: 'hi' } // Default to Hindi ('hi') or English ('en')
+    lang: { type: String, default: 'hi' }
 });
 
 const SiteSchema = new mongoose.Schema({
@@ -38,7 +38,7 @@ const WorkerSchema = new mongoose.Schema({
 
 const AttendanceSchema = new mongoose.Schema({
     userId: String,
-    key: String,
+    key: String, // Format: "YYYY-MM-DD-workerId"
     status: String,
     ot: Number,
     note: String,
@@ -49,6 +49,7 @@ const TransactionSchema = new mongoose.Schema({
     userId: String,
     id: Number,
     siteId: Number,
+    workerId: Number, // ADDED: To link transaction to a worker
     type: String,
     amount: Number,
     desc: String,
@@ -78,7 +79,7 @@ const authenticateToken = (req, res, next) => {
 
 app.post('/api/register', async (req, res) => {
     try {
-        const { username, password, lang } = req.body; // Accept lang on register
+        const { username, password, lang } = req.body;
         const hashedPassword = await bcrypt.hash(password, 10);
         await User.create({ username, password: hashedPassword, lang: lang || 'en' });
         res.json({ success: true });
@@ -97,13 +98,10 @@ app.post('/api/login', async (req, res) => {
     res.json({ token });
 });
 
-// --- 2. UPDATED DATA FETCH ---
 app.get('/api/data', authenticateToken, async (req, res) => {
     try {
         const userId = req.user.id;
-        // Fetch User settings too
         const user = await User.findById(userId);
-        
         const sites = await Site.find({ userId });
         const workers = await Worker.find({ userId });
         const attendanceList = await Attendance.find({ userId });
@@ -114,7 +112,6 @@ app.get('/api/data', authenticateToken, async (req, res) => {
             attendanceObj[a.key] = { status: a.status, ot: a.ot, note: a.note, payment: a.payment };
         });
 
-        // Send 'lang' in the response
         res.json({ 
             user: { lang: user.lang }, 
             sites, workers, attendance: attendanceObj, transactions 
@@ -124,23 +121,41 @@ app.get('/api/data', authenticateToken, async (req, res) => {
     }
 });
 
-// --- 3. NEW LANGUAGE UPDATE ROUTE ---
 app.post('/api/user/lang', authenticateToken, async (req, res) => {
     const { lang } = req.body;
     await User.findByIdAndUpdate(req.user.id, { lang });
     res.json({ success: true });
 });
 
-// ... (Keep existing write routes: sites, workers, attendance, transactions) ...
-
 app.post('/api/sites', authenticateToken, async (req, res) => {
     await Site.create({ ...req.body, userId: req.user.id });
     res.json({ success: true });
 });
+
 app.post('/api/workers', authenticateToken, async (req, res) => {
     await Worker.create({ ...req.body, userId: req.user.id });
     res.json({ success: true });
 });
+
+// Delete Worker Route (Clean up everything)
+app.delete('/api/workers/:id', authenticateToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const userId = req.user.id;
+        
+        await Worker.deleteOne({ id: id, userId: userId });
+        // Delete Attendance
+        await Attendance.deleteMany({ userId: userId, key: { $regex: `-${id}$` } });
+        // Delete related Transactions
+        await Transaction.deleteMany({ userId: userId, workerId: id });
+
+        res.json({ success: true });
+    } catch (err) {
+        console.error("Delete Error:", err);
+        res.status(500).json({ error: "Could not delete worker" });
+    }
+});
+
 app.post('/api/attendance', authenticateToken, async (req, res) => {
     const { key, data } = req.body;
     const userId = req.user.id;
@@ -149,114 +164,138 @@ app.post('/api/attendance', authenticateToken, async (req, res) => {
     else { await Attendance.create({ ...data, key, userId }); }
     res.json({ success: true });
 });
+
 app.post('/api/attendance/delete-status', authenticateToken, async (req, res) => {
     const { key } = req.body;
     await Attendance.updateOne({ key, userId: req.user.id }, { $unset: { status: "", ot: "" } });
     res.json({ success: true });
 });
-app.post('/api/attendance/delete-payment', authenticateToken, async (req, res) => {
-    const { key } = req.body;
-    await Attendance.updateOne({ key, userId: req.user.id }, { $unset: { payment: "" } });
-    res.json({ success: true });
+
+// --- NEW SYNCED PAYMENT ROUTES (Solves Problem 2) ---
+
+// 1. ADD Payment (Adds to Attendance AND Transaction)
+// 1. ADD Payment (Adds to Attendance AND Transaction)
+app.post('/api/pay/add', authenticateToken, async (req, res) => {
+    const { date, workerId, siteId, amount, name } = req.body;
+    const userId = req.user.id;
+    const key = `${date}-${workerId}`;
+
+    try {
+        // A. Update Attendance
+        let att = await Attendance.findOne({ key, userId });
+        if (att) { 
+            att.payment = amount; 
+            await att.save(); 
+        } else { 
+            await Attendance.create({ userId, key, payment: amount }); 
+        }
+
+        // B. Create Transaction
+        const txId = Date.now();
+        await Transaction.create({
+            userId,
+            id: txId,  // <--- FIXED: changed 'kxId' to 'txId'
+            siteId,
+            workerId,
+            type: 'debit',
+            amount,
+            desc: `Payment to ${name}`,
+            date
+        });
+
+        res.json({ success: true, txId });
+    } catch (e) { 
+        console.error(e); // Added logging so you can see errors in terminal
+        res.status(500).json({ error: e.message }); 
+    }
 });
+// 3. DELETE Payment (Removes from Attendance AND Deletes Transaction)
+app.post('/api/pay/delete', authenticateToken, async (req, res) => {
+    const { date, workerId } = req.body;
+    const userId = req.user.id;
+    const key = `${date}-${workerId}`;
+
+    try {
+        // A. Remove payment field from Attendance
+        await Attendance.updateOne({ key, userId }, { $unset: { payment: "" } });
+
+        // B. Delete the Transaction associated with this payment
+        // We look for a debit transaction for this worker on this specific date
+        await Transaction.deleteMany({ userId, workerId, date, type: 'debit' });
+
+        res.json({ success: true });
+    } catch (e) { 
+        console.error("Delete Payment Error:", e);
+        res.status(500).json({ error: e.message }); 
+    }
+});
+// 2. UPDATE Payment (Updates Attendance AND Transaction)
+app.post('/api/pay/update', authenticateToken, async (req, res) => {
+    const { date, workerId, amount } = req.body;
+    const userId = req.user.id;
+    const key = `${date}-${workerId}`;
+
+    try {
+        // A. Update Attendance
+        await Attendance.updateOne({ key, userId }, { $set: { payment: amount } });
+
+        // B. Update Transaction (Find by date + workerId)
+        // We look for a debit transaction for this worker on this date
+        await Transaction.updateMany(
+            { userId, workerId, date, type: 'debit' },
+            { $set: { amount: amount } }
+        );
+
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// --- EXISTING TRANSACTION ROUTES ---
+
 app.post('/api/transactions', authenticateToken, async (req, res) => {
+    // Normal manual transactions
     await Transaction.create({ ...req.body, userId: req.user.id });
     res.json({ success: true });
 });
+
+// UPDATE: Delete Transaction (Syncs back to Attendance)
+// UPDATE: Delete Transaction (Syncs back to Attendance)
 app.delete('/api/transactions/:id', authenticateToken, async (req, res) => {
-    await Transaction.deleteOne({ id: req.params.id, userId: req.user.id });
-    res.json({ success: true });
-});
+    // FIX: Convert params.id to a Number
+    const txId = Number(req.params.id); 
+    const userId = req.user.id;
 
-        // --- ADD THIS TO server.js ---
+    console.log(`[DELETE TX] Attempting to delete TxID: ${txId} for User: ${userId}`);
 
-// Delete Worker Route
-app.delete('/api/workers/:id', authenticateToken, async (req, res) => {
     try {
-        const { id } = req.params;
-        const userId = req.user.id;
+        // 1. Find the transaction first
+        const tx = await Transaction.findOne({ id: txId, userId });
         
-        // Delete the Worker
-        await Worker.deleteOne({ id: id, userId: userId });
-        
-        // Also Delete their Attendance (Cleanup)
-        // Note: We use regex to find keys ending in "-workerId"
-        await Attendance.deleteMany({ userId: userId, key: { $regex: `-${id}$` } });
-
-        res.json({ success: true });
-    } catch (err) {
-        console.error("Delete Error:", err);
-        res.status(500).json({ error: "Could not delete worker" });
-    }
-});
-async function shareOnWhatsapp() {
-            const w = appData.workers[workerIndex];
+        if (!tx) {
+            console.log("[DELETE TX] Transaction not found in DB.");
+        } else {
+            console.log(`[DELETE TX] Found Tx. WorkerId: ${tx.workerId}, Date: ${tx.date}`);
             
-            // 1. Populate the Report Card
-            document.getElementById('rcName').innerText = w.name;
-            const mName = currentMonthDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-            document.getElementById('rcMonth').innerText = mName;
-            document.getElementById('rcDue').innerText = document.getElementById('sumDue').innerText;
-
-            const list = document.getElementById('rcBody');
-            list.innerHTML = '';
-
-            const daysInMonth = new Date(currentMonthDate.getFullYear(), currentMonthDate.getMonth() + 1, 0).getDate();
-            
-            // Loop through days to build the table rows
-            for (let day = 1; day <= daysInMonth; day++) {
-                const monthStr = String(currentMonthDate.getMonth() + 1).padStart(2, '0');
-                const isoDate = `${currentMonthDate.getFullYear()}-${monthStr}-${String(day).padStart(2, '0')}`;
-                const key = `${isoDate}-${workerId}`;
-                const log = appData.attendance[key];
-
-                if (log && (log.status || log.payment)) {
-                    const row = document.createElement('div');
-                    row.style.cssText = "display:flex; padding:5px; border-bottom:1px solid #ccc; font-size:0.9rem;";
-                    
-                    let statusTxt = log.status || '-';
-                    let extraTxt = log.ot ? `(+${log.ot}h)` : '';
-                    if(log.payment) extraTxt += ` Paid ${log.payment}`;
-
-                    row.innerHTML = `
-                        <div style="width:30%; font-weight:700;">${day}</div>
-                        <div style="width:40%; text-align:center;">${statusTxt}</div>
-                        <div style="width:30%; text-align:right;">${extraTxt}</div>
-                    `;
-                    list.appendChild(row);
-                }
-            }
-
-            // 2. Generate Image
-            try {
-                const canvas = await html2canvas(document.getElementById('reportCard'));
+            // 2. If it's linked to a worker, remove the payment badge from Attendance
+            if (tx.workerId && tx.date) {
+                const key = `${tx.date}-${tx.workerId}`;
+                console.log(`[DELETE TX] Removing Attendance Payment for Key: ${key}`);
                 
-                canvas.toBlob(async (blob) => {
-                    const file = new File([blob], "Worker_Report.png", { type: "image/png" });
-
-                    // 3. Try Native Share (Mobile)
-                    if (navigator.share) {
-                        try {
-                            await navigator.share({
-                                files: [file],
-                                title: 'Worker Report',
-                                text: `Attendance for ${w.name}`
-                            });
-                        } catch (err) {
-                            console.log("Share failed or cancelled", err);
-                        }
-                    } else {
-                        // 4. Fallback for Desktop (Download)
-                        const link = document.createElement('a');
-                        link.download = `Report_${w.name}.png`;
-                        link.href = canvas.toDataURL();
-                        link.click();
-                        alert("Image downloaded! You can now send it on WhatsApp.");
-                    }
-                });
-            } catch (err) {
-                alert("Could not generate image: " + err);
+                const updateRes = await Attendance.updateOne({ key, userId }, { $unset: { payment: "" } });
+                console.log(`[DELETE TX] Attendance Update Result:`, updateRes);
+            } else {
+                console.log("[DELETE TX] Transaction has no workerId or date. Skipping Attendance sync.");
             }
         }
+
+        // 3. Delete the transaction
+        await Transaction.deleteOne({ id: txId, userId });
+        res.json({ success: true });
+    } catch (e) { 
+        console.error("[DELETE TX] Error:", e);
+        res.status(500).json({ error: e.message }); 
+    }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
