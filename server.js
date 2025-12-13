@@ -258,6 +258,49 @@ app.post('/api/transactions', authenticateToken, async (req, res) => {
     res.json({ success: true });
 });
 
+// UPDATE Site Name
+app.post('/api/sites/update', authenticateToken, async (req, res) => {
+    const { id, name, loc } = req.body;
+    const userId = req.user.id;
+    try {
+        await Site.updateOne({ id, userId }, { $set: { name, loc } });
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// DELETE Site (And all related data)
+app.post('/api/sites/delete', authenticateToken, async (req, res) => {
+    const { id } = req.body;
+    const userId = req.user.id;
+    try {
+        // 1. Delete the Site
+        await Site.deleteOne({ id, userId });
+        
+        // 2. Delete all Workers on this site
+        // First find them so we can delete their attendance
+        const workers = await Worker.find({ siteId: id, userId });
+        const workerIds = workers.map(w => w.id);
+
+        // Delete Workers
+        await Worker.deleteMany({ siteId: id, userId });
+
+        // 3. Delete Attendance for those workers
+        // Regex to match keys ending in "-workerID"
+        // This is complex, easier to just delete by userId if we had siteId in attendance, 
+        // but since we don't, we iterate.
+        for(let wid of workerIds) {
+            await Attendance.deleteMany({ userId, key: { $regex: `-${wid}$` } });
+        }
+
+        // 4. Delete Transactions for this Site
+        await Transaction.deleteMany({ siteId: id, userId });
+
+        res.json({ success: true });
+    } catch (e) { 
+        console.error(e);
+        res.status(500).json({ error: e.message }); 
+    }
+});
 // UPDATE: Delete Transaction (Syncs back to Attendance)
 // UPDATE: Delete Transaction (Syncs back to Attendance)
 app.delete('/api/transactions/:id', authenticateToken, async (req, res) => {
