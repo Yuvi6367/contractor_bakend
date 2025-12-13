@@ -4,20 +4,37 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const axios = require('axios');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
+
+
+// --- CASHFREE CONFIG ---
+// --- PASTE THIS INSTEAD ---
+const CASHFREE_APP_ID = process.env.CASHFREE_APP_ID;
+const CASHFREE_SECRET_KEY = process.env.CASHFREE_SECRET_KEY;
+const CASHFREE_ENV = 'TEST'; // Change to 'PROD' when live
+const CASHFREE_URL = CASHFREE_ENV === 'PROD' 
+    ? 'https://api.cashfree.com/pg/orders' 
+    : 'https://sandbox.cashfree.com/pg/orders';
+
+
 mongoose.connect(process.env.MONGO_URI)
     .then(() => console.log("Connected to MongoDB"))
     .catch(err => console.error("MongoDB error:", err));
 
-// --- SCHEMAS ---
+// Replace your existing UserSchema with this one
 const UserSchema = new mongoose.Schema({
     username: { type: String, required: true, unique: true },
     password: { type: String, required: true },
-    lang: { type: String, default: 'hi' }
+    lang: { type: String, default: 'hi' },
+    
+    // Subscription Fields
+    createdAt: { type: Date, default: Date.now }, // Trial starts here
+    subscriptionExpiresAt: { type: Date, default: null } // Date when paid plan ends
 });
 
 const SiteSchema = new mongoose.Schema({
@@ -38,22 +55,24 @@ const WorkerSchema = new mongoose.Schema({
 
 const AttendanceSchema = new mongoose.Schema({
     userId: String,
-    key: String, // Format: "YYYY-MM-DD-workerId"
+    key: String,
     status: String,
     ot: Number,
     note: String,
-    payment: Number
+    payment: Number,
+    paymentMode: String // ADDED: 'cash' or 'online'
 });
 
 const TransactionSchema = new mongoose.Schema({
     userId: String,
     id: Number,
     siteId: Number,
-    workerId: Number, // ADDED: To link transaction to a worker
+    workerId: Number,
     type: String,
     amount: Number,
     desc: String,
-    date: String
+    date: String,
+    mode: String // ADDED: To track transaction type
 });
 
 const User = mongoose.model('User', UserSchema);
@@ -74,7 +93,32 @@ const authenticateToken = (req, res, next) => {
         next();
     });
 };
+// --- SUBSCRIPTION HELPER ---
+// Add this function before your routes
+// --- SUBSCRIPTION HELPER (Updated for Existing Users) ---
+const getSubscriptionStatus = (user) => {
+    const now = new Date();
+    
+    // 1. Handle Existing Users who don't have 'createdAt'
+    // If createdAt is missing, we treat them as if they signed up TODAY.
+    // This gives all your current loyal users a fresh 30-day free trial.
+    const signupDate = user.createdAt ? new Date(user.createdAt) : new Date();
 
+    const trialEnds = new Date(signupDate);
+    trialEnds.setDate(trialEnds.getDate() + 30); // 30 Day Trial
+
+    // 2. Check Status
+    const isTrialActive = now < trialEnds;
+    const isPaidActive = user.subscriptionExpiresAt && new Date(user.subscriptionExpiresAt) > now;
+
+    return {
+        isActive: isTrialActive || isPaidActive,
+        type: isPaidActive ? 'PRO' : (isTrialActive ? 'TRIAL' : 'EXPIRED'),
+        daysLeft: isPaidActive 
+            ? Math.ceil((new Date(user.subscriptionExpiresAt) - now) / (1000 * 60 * 60 * 24))
+            : (isTrialActive ? Math.ceil((trialEnds - now) / (1000 * 60 * 60 * 24)) : 0)
+    };
+};
 // --- ROUTES ---
 
 app.post('/api/register', async (req, res) => {
@@ -98,26 +142,118 @@ app.post('/api/login', async (req, res) => {
     res.json({ token });
 });
 
+// --- UPDATED DATA ROUTE ---
+// Replace your existing app.get('/api/data'...) with this:
 app.get('/api/data', authenticateToken, async (req, res) => {
     try {
         const userId = req.user.id;
         const user = await User.findById(userId);
+        
+        // 1. Calculate Status
+        const subStatus = getSubscriptionStatus(user);
+
         const sites = await Site.find({ userId });
         const workers = await Worker.find({ userId });
         const attendanceList = await Attendance.find({ userId });
         const transactions = await Transaction.find({ userId });
 
-        const attendanceObj = {};
+const attendanceObj = {};
         attendanceList.forEach(a => {
-            attendanceObj[a.key] = { status: a.status, ot: a.ot, note: a.note, payment: a.payment };
+            // FIX: Added 'paymentMode: a.paymentMode'
+            attendanceObj[a.key] = { 
+                status: a.status, 
+                ot: a.ot, 
+                note: a.note, 
+                payment: a.payment,
+                paymentMode: a.paymentMode 
+            };
         });
 
         res.json({ 
-            user: { lang: user.lang }, 
-            sites, workers, attendance: attendanceObj, transactions 
+            user: { lang: user.lang, sub: subStatus }, 
+            sites, 
+            workers, 
+            attendance: attendanceObj, 
+            transactions 
         });
     } catch (err) {
         res.status(500).json({ error: err.message });
+    }
+});
+
+// --- NEW CASHFREE ROUTES ---
+// Add these new routes for payment handling
+
+// 1. Create Order
+app.post('/api/create-order', authenticateToken, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const user = await User.findById(userId);
+        const orderId = `ORDER_${userId}_${Date.now()}`;
+
+        const payload = {
+            order_id: orderId,
+            order_amount: 99.00,
+            order_currency: "INR",
+            customer_details: {
+                customer_id: userId,
+                customer_phone: "9999999999", // Ideally ask user for this, but fixed for now is okay
+                customer_name: user.username
+            },
+            order_meta: {
+                return_url: "https://contractorpro.onrender.com/index.html?payment_status=check" // Your live URL
+            }
+        };
+
+        const response = await axios.post(CASHFREE_URL, payload, {
+            headers: {
+                'x-client-id': CASHFREE_APP_ID,
+                'x-client-secret': CASHFREE_SECRET_KEY,
+                'x-api-version': '2022-09-01',
+                'Content-Type': 'application/json'
+            }
+        });
+
+        res.json({ payment_session_id: response.data.payment_session_id, order_id: orderId });
+
+    } catch (error) {
+        console.error("Cashfree Error:", error.response ? error.response.data : error.message);
+        res.status(500).json({ error: "Payment creation failed" });
+    }
+});
+
+// 2. Verify Payment (Called after success)
+app.post('/api/verify-payment', authenticateToken, async (req, res) => {
+    const { orderId } = req.body;
+    try {
+        // Call Cashfree to check status
+        const response = await axios.get(`${CASHFREE_URL}/${orderId}`, {
+            headers: {
+                'x-client-id': CASHFREE_APP_ID,
+                'x-client-secret': CASHFREE_SECRET_KEY,
+                'x-api-version': '2022-09-01'
+            }
+        });
+
+        if (response.data.order_status === 'PAID') {
+            // Add 30 Days to subscription
+            const userId = req.user.id;
+            const user = await User.findById(userId);
+            
+            let newExpiry = new Date();
+            // If already active, add to existing expiry
+            if (user.subscriptionExpiresAt && new Date(user.subscriptionExpiresAt) > new Date()) {
+                newExpiry = new Date(user.subscriptionExpiresAt);
+            }
+            newExpiry.setDate(newExpiry.getDate() + 30);
+
+            await User.findByIdAndUpdate(userId, { subscriptionExpiresAt: newExpiry });
+            res.json({ success: true, newExpiry });
+        } else {
+            res.status(400).json({ error: "Payment not verified" });
+        }
+    } catch (error) {
+        res.status(500).json({ error: "Verification failed" });
     }
 });
 
@@ -175,37 +311,41 @@ app.post('/api/attendance/delete-status', authenticateToken, async (req, res) =>
 
 // 1. ADD Payment (Adds to Attendance AND Transaction)
 // 1. ADD Payment (Adds to Attendance AND Transaction)
+// 2. UPDATE '/api/pay/add' ROUTE
 app.post('/api/pay/add', authenticateToken, async (req, res) => {
-    const { date, workerId, siteId, amount, name } = req.body;
+    // Added 'mode' to request body
+    const { date, workerId, siteId, amount, name, mode } = req.body; 
     const userId = req.user.id;
     const key = `${date}-${workerId}`;
 
     try {
-        // A. Update Attendance
+        // A. Update Attendance (Save paymentMode)
         let att = await Attendance.findOne({ key, userId });
         if (att) { 
             att.payment = amount; 
+            att.paymentMode = mode; // <--- Save Mode
             await att.save(); 
         } else { 
-            await Attendance.create({ userId, key, payment: amount }); 
+            await Attendance.create({ userId, key, payment: amount, paymentMode: mode }); 
         }
 
-        // B. Create Transaction
+        // B. Create Transaction (Save mode)
         const txId = Date.now();
         await Transaction.create({
             userId,
-            id: txId,  // <--- FIXED: changed 'kxId' to 'txId'
+            id: txId,
             siteId,
             workerId,
             type: 'debit',
             amount,
             desc: `Payment to ${name}`,
-            date
+            date,
+            mode: mode // <--- Save Mode
         });
 
         res.json({ success: true, txId });
     } catch (e) { 
-        console.error(e); // Added logging so you can see errors in terminal
+        console.error(e);
         res.status(500).json({ error: e.message }); 
     }
 });
