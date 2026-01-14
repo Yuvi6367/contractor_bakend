@@ -66,6 +66,7 @@ const AttendanceSchema = new mongoose.Schema({
     key: String,
     status: String,
     ot: Number,
+    otRate: Number, // ADDED: Custom OT Rate
     note: String,
     payment: Number,
     paymentMode: String // ADDED: 'cash' or 'online'
@@ -599,3 +600,4 @@ app.post('/api/start-trial', authenticateToken, async (req, res) => {
 });
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
